@@ -4,22 +4,36 @@ import (
    "fmt"
    "log"
    "os"
-	 "strings"
 	 "database/sql" 
-	 "github.com/lib/pq" 
+	 _ "github.com/lib/pq" 
+	 "github.com/joho/godotenv"
 
-   "github.com/gofiber/fiber/v2"
+   "github.com/gofiber/fiber/v2" 
+	 "github.com/gofiber/fiber/v2/middleware/cors"
 )
 
 type Node struct {
 	Id				int `json:"id"`
 	Info 			string `json:"info"`
-	Children 	[]string `json:"children"`
+	Parent 		int `json:"parent"`
 }
 
+func getEnv(key string) string {
+
+  // load .env file
+  err := godotenv.Load(".env")
+
+  if err != nil {
+    log.Fatalf("Error loading .env file")
+  }
+
+  return os.Getenv(key)
+}
+
+var DB =  getEnv("DB")
 
 func rootHandler(c *fiber.Ctx, db *sql.DB) error {
-	rows, err:= db.Query("SELECT * FROM public.\"Node3\"")
+	rows, err:= db.Query("SELECT * FROM " + DB)
 	defer rows.Close()
 	if err != nil {
 		log.Fatalln(err)
@@ -30,10 +44,9 @@ func rootHandler(c *fiber.Ctx, db *sql.DB) error {
 	for rows.Next() {
 		var a int
 		var b string
-		var c []string
-		rows.Scan(&a, &b, pq.Array(&c))
-		fmt.Println(c)
-		nodes = append(nodes, Node{Id: a, Info: b, Children: c})
+		var c int
+		rows.Scan(&a, &b, &c)
+		nodes = append(nodes, Node{Id: a, Info: b, Parent: c})
 	}
 
 	return c.JSON(nodes)
@@ -49,7 +62,7 @@ func createHandler(c *fiber.Ctx, db *sql.DB) error {
 		}
 	}
 
-	_, err := db.Exec("INSERT into public.\"Node3\" (info, children) VALUES ($1, $2)", newNode.Info, "{" + strings.Join(newNode.Children, ",") + "}")
+	_, err := db.Exec("INSERT into " + DB + " (info, parent) VALUES ($1, $2)", newNode.Info, newNode.Parent)
 	if err != nil {
 		log.Fatalf("An error occured while executing query: %v", err)
 	}
@@ -67,7 +80,7 @@ func updateHandler(c *fiber.Ctx, db *sql.DB) error {
 		}
 	}
 
-	_, err := db.Exec("UPDATE public.\"Node3\" SET info=$1, children=$2 WHERE id=$3", newNode.Info, "{" + strings.Join(newNode.Children, ",") + "}", id)
+	_, err := db.Exec("UPDATE " + DB + " SET info=$1, parent=$2 WHERE id=$3", newNode.Info, newNode.Parent, id)
 	if err != nil {
 		log.Fatalf("An error occured while executing query: %v", err)
 	}
@@ -76,7 +89,7 @@ func updateHandler(c *fiber.Ctx, db *sql.DB) error {
 
 
 func main() {
-	uri := "postgresql://postgres:test@localhost/dynalist?sslmode=disable"
+	uri := getEnv("POSTGRES_URL")
 	db, err := sql.Open("postgres", uri)
 
 	if err != nil {
@@ -84,6 +97,10 @@ func main() {
 	}
    
 	app := fiber.New()
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "http://localhost:3000",
+		AllowHeaders: "Origin, Content-Type, Accept",
+	}))
    
 	 
 	app.Get("/", func(c *fiber.Ctx) error {
@@ -97,6 +114,7 @@ func main() {
 	app.Put("/update", func(c *fiber.Ctx) error {
 		return updateHandler(c, db)
 	})
+
   	 
 	port := os.Getenv("PORT")
 	if port == "" {
