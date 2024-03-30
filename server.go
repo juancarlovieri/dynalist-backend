@@ -16,6 +16,8 @@ type Node struct {
 	Id				int `json:"id"`
 	Info 			string `json:"info"`
 	Parent 		int `json:"parent"`
+	Prev			int `json:"prev"`
+	Next			int `json:"next"`
 }
 
 func getEnv(key string) string {
@@ -45,8 +47,10 @@ func rootHandler(c *fiber.Ctx, db *sql.DB) error {
 		var a int
 		var b string
 		var c int
+		var d int
+		var e int
 		rows.Scan(&a, &b, &c)
-		nodes = append(nodes, Node{Id: a, Info: b, Parent: c})
+		nodes = append(nodes, Node{Id: a, Info: b, Parent: c, Prev: d, Next: e})
 	}
 
 	return c.JSON(nodes)
@@ -62,7 +66,7 @@ func createHandler(c *fiber.Ctx, db *sql.DB) error {
 		}
 	}
 
-	_, err := db.Exec("INSERT into " + DB + " (info, parent) VALUES ($1, $2)", newNode.Info, newNode.Parent)
+	_, err := db.Exec("INSERT into " + DB + " (info, parent, prev, next) VALUES ($1, $2, $3, $4)", newNode.Info, newNode.Parent, newNode.Prev, newNode.Next)
 	if err != nil {
 		log.Fatalf("An error occured while executing query: %v", err)
 	}
@@ -80,7 +84,7 @@ func updateHandler(c *fiber.Ctx, db *sql.DB) error {
 		}
 	}
 
-	_, err := db.Exec("UPDATE " + DB + " SET info=$1, parent=$2 WHERE id=$3", newNode.Info, newNode.Parent, id)
+	_, err := db.Exec("UPDATE " + DB + " SET info=$1, parent=$2, prev=$3, next=$4 WHERE id=$5", newNode.Info, newNode.Parent, newNode.Prev, newNode.Next, id)
 	if err != nil {
 		log.Fatalf("An error occured while executing query: %v", err)
 	}
